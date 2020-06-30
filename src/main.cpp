@@ -47,17 +47,25 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <sys/time.h>
 #include <go2/input.h>
 
+// for config by trngaje
+#include <libconfig.h>
+#include <libgen.h>
+#include <sys/stat.h>
+#include "config.h"
 
 #define RETRO_DEVICE_ATARI_JOYSTICK RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_JOYPAD, 1)
 
 
 extern go2_battery_state_t batteryState;
-
+extern unsigned char ucDPAD_rotate; //trngaje
+extern unsigned char ucScreen_rotate; //trngaje
+extern unsigned char ucRom_rotate;
 
 retro_hw_context_reset_t retro_context_reset;
 
 const char* opt_savedir = ".";
 const char* opt_systemdir = ".";
+const char* opt_configdir = "./retrorun.cfg";
 float opt_aspect = 0.0f;
 int opt_backlight = -1;
 int opt_volume = -1;
@@ -74,6 +82,7 @@ struct option longopts[] = {
     { "aspect", required_argument, NULL, 'a' },
     { "backlight", required_argument, NULL, 'b' },
     { "volume", required_argument, NULL, 'v' },
+	{ "config", required_argument, NULL, 'c' }, // added by trngaje
     { "restart", no_argument, NULL, 'r' },
     { "triggers", no_argument, NULL, 't' },
     { "analog", no_argument, NULL, 'n' },
@@ -139,8 +148,11 @@ static void core_log(enum retro_log_level level, const char* fmt, ...)
 	if (level == 0)
 		return;
 
-	fprintf(stdout, "[%s] %s", levelstr[level], buffer);
-	fflush(stdout);
+	if (cfgf.showcorelog)
+	{
+		fprintf(stdout, "[%s] %s", levelstr[level], buffer);
+		fflush(stdout);
+	}
 
 #if 0
 	if (level == RETRO_LOG_ERROR)
@@ -159,7 +171,8 @@ static __eglMustCastToProperFunctionPointerType get_proc_address(const char* sym
 static bool core_environment(unsigned cmd, void* data)
 {
 	bool* bval;
-
+	unsigned *rotatevalue;
+	
 	switch (cmd)
     {
         case RETRO_ENVIRONMENT_GET_FASTFORWARDING:
@@ -267,6 +280,52 @@ static bool core_environment(unsigned cmd, void* data)
                 var->value = "UNIBIOS";
                 return true;
             }
+			else if (strcmp(var->key, "fbneo-vertical-mode") == 0)
+			{
+#if 0
+                var->value = "enabled";
+#else
+				var->value = "disabled";
+#endif
+                return true;				
+			}
+			else if (strcmp(var->key, "mame2003-plus_skip_disclaimer") == 0)
+			{
+                var->value = "enabled";
+
+                return true;				
+			}		
+			else if (strcmp(var->key, "mame2003-plus_skip_warnings") == 0)
+			{
+                var->value = "enabled";
+
+                return true;				
+			}			
+			else if (strcmp(var->key, "mame2003-plus_machine_timing") == 0)
+			{
+                var->value = "disabled";
+
+                return true;				
+			}	
+			else if (strcmp(var->key, "mame_current_skip_gameinfo") == 0)
+			{
+                var->value = "enabled";
+
+                return true;				
+			}
+			else if (strcmp(var->key, "mame_current_skip_warnings") == 0)
+			{
+                var->value = "enabled";
+
+                return true;				
+			}			
+			else if (strcmp(var->key, "mame_current_frame_skip") == 0)
+			{
+                var->value = "1";
+
+                return true;				
+			}
+		
             else if (strcmp(var->key, "atari800_resolution") == 0)
             {
                 var->value = "336x240";
@@ -282,18 +341,64 @@ static bool core_environment(unsigned cmd, void* data)
                 var->value = "OFF";
                 return true;
             }
-            else if (strcmp(var->key, "mame2003-plus_skip_disclaimer") == 0)
-            {
-                var->value = "enabled";
-                return true;
-            }
-            // else if (strcmp(var->key, "mame2003-plus_frameskip") == 0)
-            // {
-            //     var->value = "1";
-            //     return true;
-            // }
-            else
-            {
+			else if (strcmp(var->key, "parallel-n64-gfxplugin") == 0)
+			{
+                var->value = "rice";
+                return true;				
+			}
+			else if (strcmp(var->key, "parallel-n64-framerate") == 0)
+			{
+                var->value = "fullspeed";
+                return true;				
+			}	
+			else if (strcmp(var->key, "parallel-n64-screensize") == 0)
+			{
+                var->value = "640x480";
+                return true;				
+			}		
+			else if (strcmp(var->key, "fbneo-dipswitch-bublbobl-Lives") == 0)
+			{
+                var->value = "5"; // 1,2,3,5
+                return true;				
+			}	
+			else if (strcmp(var->key, "fbneo-dipswitch-sboblboblf-Game") == 0)
+			{
+                var->value = "Bobble Bobble"; // Super Bobble Bobble (default)
+                return true;				
+			}	
+			else if (strcmp(var->key, "fbneo-dipswitch-sboblboblf-Lives") == 0)
+			{
+                var->value = "5"; // 1,2,3,5 , good (cheat)
+                return true;				
+			}	
+			else if (strcmp(var->key, "fbneo-dipswitch-sboblboblf-Difficulty") == 0)
+			{
+                var->value = "Easy"; // Normal (default)
+                return true;				
+			}			
+			else if (strcmp(var->key, "fbneo-dipswitch-dland-Lives") == 0)
+			{
+                var->value = "100 (Cheat)"; // 1,2,3,5 , good
+                return true;				
+			}			
+			else if (strcmp(var->key, "fbneo-dipswitch-bublbobl-Bonus_Life") == 0)
+			{
+                var->value = "20K 80K 300K";
+                return true;				
+			}	
+			else if (strcmp(var->key, "fbneo-dipswitch-bublbobl-Difficulty") == 0)
+			{
+                var->value = "Easy"; //Easy, Normal, Hard, Very_Hard
+                return true;				
+			}	
+#if 0			
+			else if (strcmp(var->key, "fbneo-dipswitch-bublbobl-Mode") == 0)
+			{
+                var->value = "Game, Japanese"; 
+                return true;				
+			}
+#endif			
+	        else{
                 varmap_t::iterator iter = variables.find(var->key);
                 if (iter != variables.end())
                 {
@@ -308,6 +413,38 @@ static bool core_environment(unsigned cmd, void* data)
             return false;
         }
 
+		case RETRO_ENVIRONMENT_SET_ROTATION:
+			//Sets screen rotation of graphics.
+			//Valid values are 0, 1, 2, 3, which rotates screen by 0, 90, 180,
+			//270 degrees counter-clockwise respectively.
+//			int *rotatevalue = (int *)data;
+//			printf("SET_VAR:RETRO_ENVIRONMENT_SET_ROTATION:%d\n", rotatevalue);
+			rotatevalue = (unsigned *)data;
+//			*rotatevalue = 0;
+			printf("SET_VAR:RETRO_ENVIRONMENT_SET_ROTATION:%d\n", *rotatevalue);
+
+			ucRom_rotate = (unsigned char) (*rotatevalue);
+			if (!cfgf.autovertical) // keep normal orientation 
+			{
+				ucScreen_rotate = ucRom_rotate;
+				ucDPAD_rotate = 0;
+			}
+			else{
+				if (ucRom_rotate == 2 || ucRom_rotate == 3)
+				{
+					ucDPAD_rotate = (ucRom_rotate + 2) % 4;
+					ucScreen_rotate = (4 + 0 - 2) % 4;
+				}
+				else{
+					ucScreen_rotate = 0;
+					ucDPAD_rotate = ucRom_rotate;				
+				}
+				
+			}
+			
+			
+            return true;
+		
         default:
             core_log(RETRO_LOG_DEBUG, "Unhandled env #%u", cmd);
             return false;
@@ -604,6 +741,259 @@ static void SaveSram(const char* saveName)
     fclose(file);
 }
 
+typedef struct 
+{
+	char name[20];
+	int index;
+} input_button_type;
+
+const input_button_type custom_input_buttons[] =
+{	{"input_b", RETRO_DEVICE_ID_JOYPAD_B},
+	{"input_y", RETRO_DEVICE_ID_JOYPAD_Y},
+	{"input_select", RETRO_DEVICE_ID_JOYPAD_SELECT},
+	{"input_start", RETRO_DEVICE_ID_JOYPAD_START},    
+	{"input_up", RETRO_DEVICE_ID_JOYPAD_UP},
+	{"input_down", RETRO_DEVICE_ID_JOYPAD_DOWN},
+	{"input_left", RETRO_DEVICE_ID_JOYPAD_LEFT},
+	{"input_right", RETRO_DEVICE_ID_JOYPAD_RIGHT},
+	{"input_a", RETRO_DEVICE_ID_JOYPAD_A},
+	{"input_x", RETRO_DEVICE_ID_JOYPAD_X},
+	{"input_l", RETRO_DEVICE_ID_JOYPAD_L},
+	{"input_r", RETRO_DEVICE_ID_JOYPAD_R},
+	{"input_l2", RETRO_DEVICE_ID_JOYPAD_L2},
+	{"input_r2", RETRO_DEVICE_ID_JOYPAD_R2},
+	{"input_l3", RETRO_DEVICE_ID_JOYPAD_L3},
+    {"input_r3", RETRO_DEVICE_ID_JOYPAD_R3}};
+
+// move to input.h
+#if 0
+enum{
+	OGA_PHYSICAL_B=0,
+	OGA_PHYSICAL_A,
+	OGA_PHYSICAL_X,
+	OGA_PHYSICAL_Y,
+	OGA_PHYSICAL_L,
+	OGA_PHYSICAL_R,
+	OGA_PHYSICAL_UP,
+	OGA_PHYSICAL_DOWN,
+	OGA_PHYSICAL_LEFT,
+	OGA_PHYSICAL_RIGHT,
+	OGA_PHYSICAL_F1,
+	OGA_PHYSICAL_F2,
+	OGA_PHYSICAL_F3,
+	OGA_PHYSICAL_F4,
+	OGA_PHYSICAL_F5,
+	OGA_PHYSICAL_F6
+};
+#endif
+const input_button_type physical_input_buttons[] =
+{   {"b", OGA_PHYSICAL_B},
+	{"a", OGA_PHYSICAL_A},
+	{"x", OGA_PHYSICAL_X},
+	{"y", OGA_PHYSICAL_Y},
+	{"lb", OGA_PHYSICAL_L},
+	{"rb",OGA_PHYSICAL_R},
+	{"up", OGA_PHYSICAL_UP},
+	{"down", OGA_PHYSICAL_DOWN},
+	{"left", OGA_PHYSICAL_LEFT},
+	{"right", OGA_PHYSICAL_RIGHT},
+	{"f1", OGA_PHYSICAL_F1},
+	{"f2", OGA_PHYSICAL_F2},
+	{"f3", OGA_PHYSICAL_F3},
+	{"f4", OGA_PHYSICAL_F4},
+	{"f5", OGA_PHYSICAL_F5},
+	{"f6", OGA_PHYSICAL_F6}};
+
+int getindexofkey(const char *name)
+{
+	int i;
+	for (i=0; i<sizeof(physical_input_buttons) / sizeof(input_button_type); i++)
+	{
+		if (strcmp(name, physical_input_buttons[i].name) == 0)
+			return physical_input_buttons[i].index;
+	}
+	
+	return -1;
+}
+
+int bindkeys[16] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+
+cfg_file_type cfgf = {-1, -1, -1, -1, -1, -1, -1, -1, -1};
+
+
+// by trnaje
+bool read_config_file(const char *cConfigFile)
+{
+	printf("read_config_file\n");
+	
+	config_t cfg, *cf;
+	//int AutoSaveEnabled=0;
+	//char inputname[256]="";
+	const char *base = NULL;
+	double aspectratio=0;
+	int i, index;
+	
+	cf = &cfg;
+	config_init(cf);
+	if (!config_read_file(cf, cConfigFile)) {
+		fprintf(stderr, "retrorun.cfg: %s:%d - %s\n",
+			config_error_file(cf),
+			config_error_line(cf),
+			config_error_text(cf));
+		config_destroy(cf);
+		return false;
+	}
+	
+	config_lookup_bool(cf, "auto_save", &cfgf.autosave);
+	config_lookup_bool(cf, "auto_vertical", &cfgf.autovertical);
+	config_lookup_bool(cf, "auto_snapshot_before_exit", &cfgf.autosnapshot);
+	config_lookup_bool(cf, "show_core_log", &cfgf.showcorelog);
+	config_lookup_float(cf, "aspectratio", &aspectratio);
+
+	config_lookup_bool(cf, "show_status_icons", &cfgf.show_status_icons);
+	config_lookup_bool(cf, "show_status_texts", &cfgf.show_status_texts);
+	config_lookup_int(cf, "icon_battery_x", &cfgf.icon_battery_x);
+	config_lookup_int(cf, "icon_battery_y", &cfgf.icon_battery_y);
+	config_lookup_int(cf, "icon_volume_x", &cfgf.icon_volume_x);
+	config_lookup_int(cf, "icon_volume_y", &cfgf.icon_volume_y);
+	config_lookup_int(cf, "icon_brightness_x", &cfgf.icon_brightness_x);
+	config_lookup_int(cf, "icon_brightness_y", &cfgf.icon_brightness_y);
+	config_lookup_int(cf, "status_x", &cfgf.status_x);
+	config_lookup_int(cf, "status_y", &cfgf.status_y);
+
+	for (i=0; i<sizeof(custom_input_buttons) / sizeof(input_button_type); i++)
+	{
+		if (config_lookup_string(cf, custom_input_buttons[i].name, &base))
+		{
+			index = getindexofkey(base);
+			bindkeys[custom_input_buttons[i].index] = index;
+			// display binding
+			printf("%s : %d -> %s :%d\n", custom_input_buttons[i].name, custom_input_buttons[i].index, base, index);			
+		}			
+	}
+	
+	if (config_lookup_string(cf, "input_enable_hotkey_btn", &base))
+	{
+		index = getindexofkey(base);
+		cfgf.hot_key = index;
+		// display binding
+		printf("hot_key :%d\n", index);			
+	}		
+
+	if (config_lookup_string(cf, "input_exit_emulator_btn", &base))
+	{
+		index = getindexofkey(base);
+		cfgf.exit_key = index;
+		// display binding
+		printf("exit_key :%d\n", index);			
+	}
+
+	if (config_lookup_string(cf, "input_save_state_btn", &base))
+	{
+		index = getindexofkey(base);
+		cfgf.save_key = index;
+		// display binding
+		printf("save_key :%d\n", index);			
+	}
+
+	if (config_lookup_string(cf, "input_load_state_btn", &base))
+	{
+		index = getindexofkey(base);
+		cfgf.load_key = index;
+		// display binding
+		printf("load_key :%d\n", index);			
+	}
+
+	if (config_lookup_string(cf, "input_backlight_plus_btn", &base))
+	{
+		index = getindexofkey(base);
+		cfgf.bl_plus_key = index;
+		// display binding
+		printf("bl_plus_key :%d\n", index);			
+	}
+
+	if (config_lookup_string(cf, "input_backlight_minus_btn", &base))
+	{
+		index = getindexofkey(base);
+		cfgf.bl_minus_key = index;
+		// display binding
+		printf("bl_minus_key :%d\n", index);			
+	}
+
+	if (config_lookup_string(cf, "input_volume_up_btn", &base))
+	{
+		index = getindexofkey(base);
+		cfgf.vol_up_key = index;
+		// display binding
+		printf("vol_up_key :%d\n", index);			
+	}
+
+	if (config_lookup_string(cf, "input_volume_down_btn", &base))
+	{
+		index = getindexofkey(base);
+		cfgf.vol_down_key = index;
+		// display binding
+		printf("vol_down_key :%d\n", index);			
+	}
+
+	if (config_lookup_string(cf, "dir_snapshot", &base))
+	{
+		strcpy(cfgf.cdir_snapshot, base);
+		// display binding
+		printf("dir_snapshot :%s\n", cfgf.cdir_snapshot);			
+	}	
+
+	if (config_lookup_string(cf, "input_screenshot_btn", &base))
+	{
+		index = getindexofkey(base);
+		cfgf.screen_shot_key = index;
+		// display binding
+		printf("screen_shot_key :%d\n", index);			
+	}
+
+	if (config_lookup_string(cf, "input_screen_rotate_btn", &base))
+	{
+		index = getindexofkey(base);
+		cfgf.screen_rotate_key = index;
+		// display binding
+		printf("screen_rotate_key :%d\n", index);			
+	}
+
+	if (config_lookup_string(cf, "input_fullscreen_btn", &base))
+	{
+		index = getindexofkey(base);
+		cfgf.fullscreen_key = index;
+		// display binding
+		printf("fullscreen_key :%d\n", index);			
+	}
+	
+	for(i=0; i<sizeof(bindkeys) / sizeof(int); i++)
+	{
+		printf("binds[%d] = %d\n", i, bindkeys[i]);
+	}
+
+	//printf("AutoSaveEnabled = %d, aspectratio = %f\n", AutoSaveEnabled, aspectratio);
+
+
+#if 0		
+	if (config_lookup_string(cf, "ldap.base", &base))
+			printf("Host: %s\n", base);
+	retries = config_lookup(cf, "ldap.retries");
+		count = config_setting_length(retries);
+	printf("I have %d retries:\n", count);
+		for (n = 0; n < count; n++) {
+			printf("\t#%d. %d\n", n + 1,
+				config_setting_get_int_elem(retries, n));
+		}
+#endif
+	config_destroy(cf);
+	
+	return true;
+}
+
+
+int fps = 0;
+
 int main(int argc, char *argv[])
 {
     //printf("argc=%d, argv=%p\n", argc, argv);
@@ -626,7 +1016,7 @@ int main(int argc, char *argv[])
     int c;
     int option_index = 0;
 
-	while ((c = getopt_long(argc, argv, "s:d:a:b:v:rtn", longopts, &option_index)) != -1)
+	while ((c = getopt_long(argc, argv, "s:d:a:b:v:c:rtn", longopts, &option_index)) != -1)
 	{
 		switch (c)
 		{
@@ -650,6 +1040,10 @@ int main(int argc, char *argv[])
                 opt_volume = atoi(optarg);
                 break;
 
+			case 'c':
+				opt_configdir = optarg;
+				break;
+
             case 'r':
                 opt_restart = true;
                 break;
@@ -668,7 +1062,8 @@ int main(int argc, char *argv[])
 		}
 	}
 
-    printf("opt_save='%s', opt_systemdir='%s', opt_aspect=%f\n", opt_savedir, opt_systemdir, opt_aspect);
+    printf("opt_save='%s', opt_systemdir='%s', opt_configdir='%s', opt_aspect=%f\n", 
+		opt_savedir, opt_systemdir, opt_configdir, opt_aspect);
 
 
     int remaining_args = argc - optind;
@@ -693,6 +1088,8 @@ int main(int argc, char *argv[])
     arg_core = argv[remaining_index++];
     arg_rom = argv[remaining_index++];
 
+	read_config_file(opt_configdir); // by trngaje
+
 	core_load(arg_core);
     core_load_game(arg_rom);
 
@@ -701,6 +1098,8 @@ int main(int argc, char *argv[])
     // Overrides
     printf("Checking overrides.\n");
 
+#if 0
+	// new 
     go2_input_state_t* gamepadState = go2_input_state_create();
     input_gamepad_read(gamepadState);
 
@@ -712,37 +1111,102 @@ int main(int argc, char *argv[])
 
     go2_input_state_destroy(gamepadState);
     gamepadState = NULL;
-    
+#else
+	// old
+    go2_gamepad_state_t gamepadState;
+    input_gamepad_read(&gamepadState);
+
+    if (gamepadState.buttons.f1)
+    {
+        printf("Forcing restart due to button press (F1).\n");
+        opt_restart = true;
+    }
+#endif
 
     // State
-    const char* fileName = FileNameFromPath(arg_rom);
+    const char* fileName = FileNameFromPath(arg_rom);  // same to basename
     
     char* saveName = (char*)malloc(strlen(fileName) + 4 + 1);
     strcpy(saveName, fileName);
-    strcat(saveName, ".sav");
+	
+	strcpy(cfgf.cromname, fileName); // trngaje;
+	
+	// temp
+	char* dirstr = strdup(arg_rom);
+	char* basestr = strdup(arg_rom);
+	char* dname = dirname(dirstr);
+	
+	// remove extension from basename
+	char* bname = basename(basestr);
+	char *bname_dot = strchr(bname, '.');
+	int bname_offset = bname_dot - bname;
+	bname[bname_offset] = '\0';
+	
+	sprintf(cfgf.csnapnamewithrompath, "%s/snap/%s.png", dname, bname);
+	//printf("[trngaje] dname = %s\n", dname);
+	//printf("[trngaje] bname = %s\n", bname);
+	printf("[trngaje] csnapnamewithrompath = %s\n", cfgf.csnapnamewithrompath);
+	
+	strcat(dname, "/snap");
+	struct stat sb;
+	if (stat(dname, &sb) == -1) 
+	{ 
+		printf("[trngaje] stat access error\n");
+//	}
+//	else
+//	{
+//		if ((sb.st_mode & S_IFMT) != S_IFDIR)
+//		{
+			printf("[trngaje] %s is not exist\n", dname);
+			
+			if (mkdir(dname, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == 0)
+			{
+				printf("[trngaje] success to make dir:%s\n", cfgf.csnapnamewithrompath);
+			}
+			else
+			{
+				printf("[trngaje] fail to make dir:%s\n", cfgf.csnapnamewithrompath);
+			}
+//		}
+	}
 
-    char* savePath = PathCombine(opt_savedir, saveName);
-    printf("savePath='%s'\n", savePath);
-    
-    char* sramName = (char*)malloc(strlen(fileName) + 4 + 1);
-    strcpy(sramName, fileName);
-    strcat(sramName, ".srm");
 
-    char* sramPath = PathCombine(opt_savedir, sramName);
-    printf("sramPath='%s'\n", sramPath);
+	
+	if (dirstr)
+		free(dirstr);
+	if (basestr)
+		free(basestr);
+	
+	char* savePath;
+	char* sramName;
+	char* sramPath;
+	if (cfgf.autosave)
+	{
+		strcat(saveName, ".sav");
 
+		savePath = PathCombine(opt_savedir, saveName);
+		printf("savePath='%s'\n", savePath);
+		
+		sramName = (char*)malloc(strlen(fileName) + 4 + 1);
+		strcpy(sramName, fileName);
+		strcat(sramName, ".srm");
 
-    if (opt_restart)
-    {
-        printf("Restarting.\n");
-    }
-    else
-    {
-        printf("Loading.\n");
-        LoadState(savePath);
-    }
+		sramPath = PathCombine(opt_savedir, sramName);
+		printf("sramPath='%s'\n", sramPath);
 
-    LoadSram(sramPath);
+		if (opt_restart)
+		{
+			printf("Restarting.\n");
+		}
+		else
+		{
+			printf("Loading.\n");
+			LoadState(savePath);
+		}
+
+		if (cfgf.autosave)
+			LoadSram(sramPath);
+	}
 
 
     printf("Entering render loop.\n");
@@ -761,6 +1225,26 @@ int main(int argc, char *argv[])
         if (input_exit_requested)
             isRunning = false;
 
+		if (input_reset_requested)
+		{
+			input_reset_requested = false;
+			g_retro.retro_reset();
+		}			
+		
+
+		if (input_save_requested)
+		{
+			input_save_requested=false;
+			SaveState(savePath);			
+		}
+		
+		if (input_load_requested)
+		{
+			input_load_requested=false;
+			LoadState(savePath);
+		}
+	
+		
         g_retro.retro_run();
         
         gettimeofday(&endTime, NULL);
@@ -773,21 +1257,23 @@ int main(int argc, char *argv[])
 
         if (elapsed >= 1.0)
         {
-            int fps = (int)(totalFrames / elapsed);
-            printf("FPS: %i, BATT: %d [%s]\n", fps, batteryState.level, batteryStateDesc[batteryState.status]);
+            fps = (int)(totalFrames / elapsed);
+ //           printf("FPS: %i, BATT: %d [%s]\n", fps, batteryState.level, batteryStateDesc[batteryState.status]);
 
             totalFrames = 0;
             elapsed = 0;
         }
     }
 
-    SaveSram(sramPath);
-    free(sramPath);
-    free(sramName);
+	if (cfgf.autosave)
+	{
+		SaveSram(sramPath);
+		free(sramPath);
+		free(sramName);
 
-    SaveState(savePath);
-    free(savePath);
-    free(saveName);
-
+		SaveState(savePath);
+		free(savePath);
+		free(saveName);
+	}
     return 0;
 }

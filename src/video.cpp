@@ -27,6 +27,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <string.h>
 
 #include <go2/display.h>
+#include <go2/input.h>
+#include <go2/audio.h>
 
 #define EGL_EGLEXT_PROTOTYPES
 #define GL_GLEXT_PROTOTYPES
@@ -36,6 +38,17 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <GLES2/gl2ext.h>
 #include <drm/drm_fourcc.h>
 
+#include "config.h"
+#include "fonts.h"
+
+// included 9p icons for ES
+#include "BatteryIcons.h"
+#include "VolumeIcons.h"
+#include "OdroidImage.h"
+#include "SdUsbIcons.h"
+#include "WifiIcons.h"
+#include "BrightnessIcon.h"
+
 #define FBO_DIRECT 1
 #define ALIGN(val, align)	(((val) + (align) - 1) & ~((align) - 1))
 
@@ -44,6 +57,7 @@ extern int opt_backlight;
 
 go2_display_t* display;
 go2_surface_t* surface;
+go2_surface_t* status_surface;
 go2_surface_t* display_surface;
 go2_frame_buffer_t* frame_buffer;
 go2_presenter_t* presenter;
@@ -56,11 +70,16 @@ int GLContextMajor = 0;
 int GLContextMinor = 0;
 GLuint fbo;
 int hasStencil = false;
+extern bool input_exit_requested;
 bool screenshot_requested = false;
+bool snapandexit_requested = false;
 int prevBacklight;
 
 extern retro_hw_context_reset_t retro_context_reset;
 
+extern unsigned char ucDPAD_rotate; // 0 (default), 1, 2, 3 = degree 0,90,180,270
+unsigned char ucScreen_rotate=0; //trngaje
+unsigned char ucRom_rotate=0; 
 
 void video_configure(const struct retro_game_geometry* geom)
 {
@@ -85,7 +104,7 @@ void video_configure(const struct retro_game_geometry* geom)
     prevBacklight = opt_backlight;    
 
 
-    aspect_ratio = opt_aspect == 0.0f ? geom->aspect_ratio : opt_aspect;
+    aspect_ratio = opt_aspect; // == 0.0f ? geom->aspect_ratio : opt_aspect;
 
     if (isOpenGL)
     {        
@@ -199,6 +218,13 @@ void video_configure(const struct retro_game_geometry* geom)
         
         //printf("video_configure: rect=%d, %d, %d, %d\n", y, x, h, w);
     }
+	
+	status_surface = go2_surface_create(display, 480, 320, DRM_FORMAT_RGB565);	
+	if (!status_surface)
+	{
+		printf("[trngaje] go2_surface_create failed.:status_surface\n");
+		throw std::exception();
+	}	
 }
 
 void video_deinit()
@@ -217,6 +243,386 @@ uintptr_t core_video_get_current_framebuffer()
     return 0;
 #endif
 }
+
+
+extern int fps;
+extern go2_battery_state_t batteryState;
+extern int opt_backlight;
+extern int opt_volume;
+
+void showbattery(int x, int y)
+{
+	// Battery level
+	const uint8_t* src = battery_image.pixel_data;
+	int src_stride = 32 * sizeof(short);
+
+	uint8_t* dst = (uint8_t*)go2_surface_map(status_surface);
+	int dst_stride = go2_surface_stride_get(status_surface);
+
+	//go2_battery_state_t batteryState;
+	//go2_input_battery_read(input, &batteryState);
+
+	int batteryIndex;
+	if (batteryState.level == 1)
+	{
+		batteryIndex = 0;
+	}
+	else if (batteryState.level <= 5)
+	{
+		batteryIndex = 1;
+	}
+	else if (batteryState.level <= 10)
+	{
+		batteryIndex = 2;
+	}
+	else if (batteryState.level <= 15)
+	{
+		batteryIndex = 3;
+	}
+	else if (batteryState.level <= 20)
+	{
+		batteryIndex = 4;
+	}
+	else if (batteryState.level <= 25)
+	{
+		batteryIndex = 5;
+	}
+	else if (batteryState.level <= 30)
+	{
+		batteryIndex = 6;
+	}
+	else if (batteryState.level <= 35)
+	{
+		batteryIndex = 7;
+	}
+	else if (batteryState.level <= 40)
+	{
+		batteryIndex = 8;
+	}
+	else if (batteryState.level <= 45)
+	{
+		batteryIndex = 9;
+	}
+	else if (batteryState.level <= 50)
+	{
+		batteryIndex = 10;
+	}
+	else if (batteryState.level <= 55)
+	{
+		batteryIndex = 11;
+	}
+	else if (batteryState.level <= 60)
+	{
+		batteryIndex = 12;
+	}
+	else if (batteryState.level <= 65)
+	{
+		batteryIndex = 13;
+	}
+	else if (batteryState.level <= 70)
+	{
+		batteryIndex = 14;
+	}
+	else if (batteryState.level <= 75)
+	{
+		batteryIndex = 15;
+	}
+	else if (batteryState.level <= 80)
+	{
+		batteryIndex = 16;
+	}
+	else if (batteryState.level <= 85)
+	{
+		batteryIndex = 17;
+	}
+	else if (batteryState.level <= 90)
+	{
+		batteryIndex = 18;
+	}
+	else if (batteryState.level <= 95)
+	{
+		batteryIndex = 19;
+	}
+	else if (batteryState.level == 100)
+	{
+		batteryIndex = 20;
+	}				
+	else
+	{
+		batteryIndex = 20;
+	}
+	
+	src += (batteryIndex * 16 * src_stride);
+	dst += x * sizeof(short) + y * dst_stride;
+
+	for (int y = 0; y < 16; ++y)
+	{
+		memcpy(dst, src, 32 * sizeof(short));
+
+		src += src_stride;
+		dst += dst_stride;
+	}
+}
+
+void showvolume(int x, int y)
+{
+	// Volume level
+	const uint8_t*  src = (uint8_t *)(volume_image.pixel_data);
+	int src_stride = 32 * sizeof(short);
+
+	uint8_t* dst = (uint8_t*)go2_surface_map(status_surface);
+	int dst_stride = go2_surface_stride_get(status_surface);
+
+	uint32_t volume = opt_volume; //go2_audio_volume_get(NULL);
+
+	int volumeIndex;
+	if (volume == 0)
+	{
+		volumeIndex = 0;
+	}
+	else if (volume <= 5)
+	{
+		volumeIndex = 1;
+	}
+	else if (volume <= 10)
+	{
+		volumeIndex = 2;
+	}
+	else if (volume <= 15)
+	{
+		volumeIndex = 3;
+	}
+	else if (volume <= 20)
+	{
+		volumeIndex = 4;
+	}
+	else if (volume <= 25)
+	{
+		volumeIndex = 5;
+	}
+	else if (volume <= 30)
+	{
+		volumeIndex = 6;
+	}
+	else if (volume <= 35)
+	{
+		volumeIndex = 7;
+	}
+	else if (volume <= 40)
+	{
+		volumeIndex = 8;
+	}
+	else if (volume <= 45)
+	{
+		volumeIndex = 9;
+	}
+	else if (volume <= 50)
+	{
+		volumeIndex = 10;
+	}
+	else if (volume <= 55)
+	{
+		volumeIndex = 11;
+	}
+	else if (volume <= 60)
+	{
+		volumeIndex = 12;
+	}
+	else if (volume <= 65)
+	{
+		volumeIndex = 13;
+	}
+	else if (volume <= 70)
+	{
+		volumeIndex = 14;
+	}
+	else if (volume <= 75)
+	{
+		volumeIndex = 15;
+	}
+	else if (volume <= 80)
+	{
+		volumeIndex = 16;
+	}
+	else if (volume <= 85)
+	{
+		volumeIndex = 17;
+	}
+	else if (volume <= 90)
+	{
+		volumeIndex = 18;
+	}
+	else if (volume <= 95)
+	{
+		volumeIndex = 19;
+	}
+	else if (volume == 100)
+	{
+		volumeIndex = 20;
+	}
+	else
+	{
+		volumeIndex = 20;
+	}
+	
+	src += (volumeIndex * 16 * src_stride);
+	dst += x * sizeof(short) + y * dst_stride;
+
+	for (int y = 0; y < 16; ++y)
+	{
+		memcpy(dst, src, 32 * sizeof(short));
+
+		src += src_stride;
+		dst += dst_stride;
+	}
+
+	
+}
+
+void showbrightness(int x, int y)
+{
+	
+
+	// Brightness level
+	const uint8_t* src = brightness_image.pixel_data;
+	int src_stride = 32 * sizeof(short);
+
+	uint8_t* dst = (uint8_t*)go2_surface_map(status_surface);
+	int dst_stride = go2_surface_stride_get(status_surface);
+
+	int brightnessIndex = 0;
+	int brightness = 0;
+#if 0
+	int fd;
+	char buffer[10];
+	fd = open("/sys/class/backlight/backlight/brightness", O_RDONLY);
+	if (fd > 0)
+	{
+		memset(buffer, 0, 10);
+		ssize_t count = read(fd, buffer, 10);
+		if( count > 0 )
+		{
+			brightness = atoi(buffer);
+			brightness = brightness*100/255;
+		}
+		close(fd);
+	}
+#endif			
+	brightness = opt_backlight;
+
+	if (brightness == 0)
+	{
+		brightnessIndex = 0;
+	}
+	else if (brightness <= 5)
+	{
+		brightnessIndex = 1;
+	}
+	else if (brightness <= 10)
+	{
+		brightnessIndex = 2;
+	}
+	else if (brightness <= 15)
+	{
+		brightnessIndex = 3;
+	}
+	else if (brightness <= 20)
+	{
+		brightnessIndex = 4;
+	}
+	else if (brightness <= 25)
+	{
+		brightnessIndex = 5;
+	}
+	else if (brightness <= 30)
+	{
+		brightnessIndex = 6;
+	}
+	else if (brightness <= 35)
+	{
+		brightnessIndex = 7;
+	}
+	else if (brightness <= 40)
+	{
+		brightnessIndex = 8;
+	}
+	else if (brightness <= 45)
+	{
+		brightnessIndex = 9;
+	}
+	else if (brightness <= 50)
+	{
+		brightnessIndex = 10;
+	}
+	else if (brightness <= 55)
+	{
+		brightnessIndex = 11;
+	}
+	else if (brightness <= 60)
+	{
+		brightnessIndex = 12;
+	}
+	else if (brightness <= 65)
+	{
+		brightnessIndex = 13;
+	}
+	else if (brightness <= 70)
+	{
+		brightnessIndex = 14;
+	}
+	else if (brightness <= 75)
+	{
+		brightnessIndex = 15;
+	}
+	else if (brightness <= 80)
+	{
+		brightnessIndex = 16;
+	}
+	else if (brightness <= 85)
+	{
+		brightnessIndex = 17;
+	}
+	else if (brightness <= 90)
+	{
+		brightnessIndex = 18;
+	}
+	else if (brightness <= 95)
+	{
+		brightnessIndex = 19;
+	}
+	else if (brightness == 100)
+	{
+		brightnessIndex = 20;
+	}
+	else
+	{
+		brightnessIndex = 20;
+	}
+	
+	src += (brightnessIndex * 16 * src_stride);
+	dst += x * sizeof(short) + y * dst_stride;
+
+	for (int y = 0; y < 16; ++y)
+	{
+		memcpy(dst, src, 32 * sizeof(short));
+
+		src += src_stride;
+		dst += dst_stride;
+	}
+		
+}
+
+void showstatus(int x, int y, int mode)
+{
+	// display texts for current status
+	uint8_t* dst = (uint8_t*)go2_surface_map(status_surface);
+	
+	if (mode == 0)
+		basic_text_out16(dst, 480/*width*/, x, y, "F:%d, B:%d, L:%d, V:%d", fps, batteryState.level, opt_backlight, opt_volume);
+	else if (mode == 1)
+		basic_text_out16(dst, 480/*width*/, x, y, "F:%d",  fps);	
+}
+
 
 void core_video_refresh(const void * data, unsigned width, unsigned height, size_t pitch)
 {
@@ -256,7 +662,7 @@ void core_video_refresh(const void * data, unsigned width, unsigned height, size
     }
 
 
-    if (isOpenGL)
+    if (isOpenGL) // n64, saturn core excute this code
     {
         if (data != RETRO_HW_FRAME_BUFFER_VALID) return;
         
@@ -275,13 +681,118 @@ void core_video_refresh(const void * data, unsigned width, unsigned height, size
         go2_context_swap_buffers(context3D);
 
         go2_surface_t* gles_surface = go2_context_surface_lock(context3D);
+		
+
+        if (screenshot_requested || snapandexit_requested)
+        {
+            printf("Screenshot.\n");
+
+            //int ss_w = go2_surface_width_get(gles_surface);
+            //int ss_h = go2_surface_height_get(gles_surface);
+            //go2_surface_t* screenshot = go2_surface_create(display, ss_w, ss_h, DRM_FORMAT_RGB888);
+			
+			go2_surface_t* screenshot;
+			if (ucRom_rotate == 0 || ucRom_rotate == 2)
+				screenshot = go2_surface_create(display, w, h, DRM_FORMAT_RGB888);
+			else if (ucRom_rotate == 1 || ucRom_rotate == 3)
+				screenshot = go2_surface_create(display, h, w, DRM_FORMAT_RGB888);
+			
+            if (!screenshot)
+            {
+                printf("go2_surface_create failed.\n");
+                throw std::exception();
+            }
+
+
+			if (ucRom_rotate == 0)
+			{
+				go2_surface_blit(gles_surface, 0, 0, width, height,
+								 screenshot, 0, 0, w, h,
+								 GO2_ROTATION_DEGREES_0);
+			}
+			else if (ucRom_rotate == 2)
+			{
+				go2_surface_blit(gles_surface, 0, 0, width, height,
+								 screenshot, 0, 0, w, h,
+								 GO2_ROTATION_DEGREES_180);
+			}
+			else if (ucRom_rotate == 1)
+			{
+				go2_surface_blit(gles_surface, 0, 0, width, height,
+								 screenshot, 0, 0, h, w,
+								 GO2_ROTATION_DEGREES_270);				
+			}
+			else if (ucRom_rotate == 3)
+			{
+				go2_surface_blit(gles_surface, 0, 0, width, height,
+								 screenshot, 0, 0, h, w,
+								 GO2_ROTATION_DEGREES_90);				
+			}		
+
+
+			if (snapandexit_requested)
+			{
+				// snap in rom directory
+				go2_surface_save_as_png(screenshot, cfgf.csnapnamewithrompath);		
+			}
+			else 
+			{
+				// user defined path
+				char cSnapshotFile[256];
+				sprintf(cSnapshotFile, "%s/%s.png", cfgf.cdir_snapshot, cfgf.cromname);
+				printf("cSnapshotFile=%s\n", cSnapshotFile);
+				go2_surface_save_as_png(screenshot, cSnapshotFile);				
+			}
+			
+
+
+            go2_surface_destroy(screenshot);
+
+            screenshot_requested = false;
+			
+			if (snapandexit_requested)
+			{
+				snapandexit_requested = false;
+				input_exit_requested = true;	// exit
+			}
+		}
+
+		// clear status_surface
+		{
+			uint8_t* dst = (uint8_t*)go2_surface_map(status_surface);
+
+			memset(dst, 0x0000, sizeof(short) * 480 * 320);
+		}
+		
+		//status_surface
+		go2_surface_blit(gles_surface, 0, 0, width, height, status_surface, x, y, w, h,
+							 go2_rotation_t((4-ucScreen_rotate) % 4));
+
+#if 0
+		// display texts for current status
+		{
+			uint8_t* dst = (uint8_t*)go2_surface_map(status_surface);
+			
+			basic_text_out16(dst, 480/*width*/, 0, 32, "F:%d, B:%d, L:%d, V:%d", 
+				fps, batteryState.level, opt_backlight, opt_volume);	
+		}			
+#endif
+
+        go2_context_surface_unlock(context3D, gles_surface);
+		
+#if 0		
         go2_presenter_post(presenter,
                     gles_surface,
                     0, 0, width, height,
                     y, x, h, w,
                     GO2_ROTATION_DEGREES_270);
-
-        go2_context_surface_unlock(context3D, gles_surface);
+#endif
+		
+		if (snapandexit_requested)
+		{
+		//	snapandexit_requested = false;
+		//	input_exit_requested = true;	// exit
+		}		
  #else
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -334,34 +845,133 @@ void core_video_refresh(const void * data, unsigned width, unsigned height, size
             --yy;
         }
 
-        if (screenshot_requested)
+        if (screenshot_requested || snapandexit_requested)
         {
             printf("Screenshot.\n");
 
-            int ss_w = go2_surface_width_get(surface);
-            int ss_h = go2_surface_height_get(surface);
-            go2_surface_t* screenshot = go2_surface_create(display, ss_w, ss_h, DRM_FORMAT_RGB888);
+            //int ss_w = go2_surface_width_get(surface);
+            //int ss_h = go2_surface_height_get(surface);
+            //go2_surface_t* screenshot = go2_surface_create(display, ss_w, ss_h, DRM_FORMAT_RGB888);
+			
+			go2_surface_t* screenshot;
+			if (ucRom_rotate == 0 || ucRom_rotate == 2)
+				screenshot = go2_surface_create(display, w, h, DRM_FORMAT_RGB888);
+			else if (ucRom_rotate == 1 || ucRom_rotate == 3)
+				screenshot = go2_surface_create(display, h, w, DRM_FORMAT_RGB888);
+			
             if (!screenshot)
             {
                 printf("go2_surface_create failed.\n");
                 throw std::exception();
             }
-
+#if 0
             go2_surface_blit(surface, 0, 0, ss_w, ss_h,
                              screenshot, 0, 0, ss_w, ss_h,
                              GO2_ROTATION_DEGREES_0);
+#endif
 
-            go2_surface_save_as_png(screenshot, "ScreenShot.png");
+
+			if (ucRom_rotate == 0)
+			{
+				go2_surface_blit(surface, 0, 0, width, height,
+								 screenshot, 0, 0, w, h,
+								 GO2_ROTATION_DEGREES_0);
+			}
+			else if (ucRom_rotate == 2)
+			{
+				go2_surface_blit(surface, 0, 0, width, height,
+								 screenshot, 0, 0, w, h,
+								 GO2_ROTATION_DEGREES_180);
+			}
+			else if (ucRom_rotate == 1)
+			{
+				go2_surface_blit(surface, 0, 0, width, height,
+								 screenshot, 0, 0, h, w,
+								 GO2_ROTATION_DEGREES_270);				
+			}
+			else if (ucRom_rotate == 3)
+			{
+				go2_surface_blit(surface, 0, 0, width, height,
+								 screenshot, 0, 0, h, w,
+								 GO2_ROTATION_DEGREES_90);				
+			}		
+
+
+			if (snapandexit_requested)
+			{
+				// snap in rom directory
+				go2_surface_save_as_png(screenshot, cfgf.csnapnamewithrompath);		
+			}
+			else 
+			{
+				// user defined path
+				char cSnapshotFile[256];
+				sprintf(cSnapshotFile, "%s/%s.png", cfgf.cdir_snapshot, cfgf.cromname);
+				printf("cSnapshotFile=%s\n", cSnapshotFile);
+				go2_surface_save_as_png(screenshot, cSnapshotFile);				
+			}
+			
+
+
 
             go2_surface_destroy(screenshot);
 
             screenshot_requested = false;
+			
+			if (snapandexit_requested)
+			{
+				snapandexit_requested = false;
+				input_exit_requested = true;	// exit
+			}
         }
 
+		// clear status_surface
+		{
+			uint8_t* dst = (uint8_t*)go2_surface_map(status_surface);
+
+			memset(dst, 0x0000, sizeof(short) * 480 * 320);
+		}
+		
+		//status_surface
+		go2_surface_blit(surface, 0, 0, width, height, status_surface, x, y, w, h,
+							 go2_rotation_t((4-ucScreen_rotate) % 4));
+		//printf("bpp=%d, width=%d, height=%d, w=%d, h=%d\n", bpp, width, height, h, w);
+		
+	}	
+
+	if (cfgf.show_status_texts > 0)
+	{
+		//showstatus(0, 32, 1); // x, y, mode(1):fps only
+		showstatus(cfgf.status_x, cfgf.status_y, 0); // x, y, mode(1):fps only
+	}
+	
+	if (cfgf.show_status_icons > 0)
+	{
+#if 0
+		showbattery(480 - 32, 0);
+		showvolume(0, 0);
+		showbrightness(64, 0);
+#endif
+		showbattery(cfgf.icon_battery_x, cfgf.icon_battery_y);
+		showvolume(cfgf.icon_volume_x, cfgf.icon_volume_y);
+		showbrightness(cfgf.icon_brightness_x, cfgf.icon_brightness_y);
+	}
+
+	
+#if 0		
         go2_presenter_post(presenter,
                            surface,
                            0, 0, width, height,
                            y, x, h, w,
+                           go2_rotation_t((4+(unsigned char)GO2_ROTATION_DEGREES_270-ucScreen_rotate) % 4));
+#else
+        go2_presenter_post(presenter,
+                           status_surface,
+                           0, 0, 480, 320,
+                           0, 0, 320, 480,
                            GO2_ROTATION_DEGREES_270);
-    }
+	
+#endif
+
+    //}
 }

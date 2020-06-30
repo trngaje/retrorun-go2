@@ -25,7 +25,38 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 extern bool input_exit_requested;
+extern bool input_save_requested;
+extern bool input_load_requested;
+extern bool input_reset_requested;
 
+#if 0
+// new
 void input_gamepad_read(go2_input_state_t* outState);
+#else
+void input_gamepad_read(go2_gamepad_state_t* out_gamepadState);
+#endif
+
 void core_input_poll(void);
 int16_t core_input_state(unsigned port, unsigned device, unsigned index, unsigned id);
+
+
+// added by trngaje
+
+enum{
+	OGA_PHYSICAL_B=0,
+	OGA_PHYSICAL_A,
+	OGA_PHYSICAL_X,
+	OGA_PHYSICAL_Y,
+	OGA_PHYSICAL_L,
+	OGA_PHYSICAL_R,
+	OGA_PHYSICAL_UP,
+	OGA_PHYSICAL_DOWN,
+	OGA_PHYSICAL_LEFT,
+	OGA_PHYSICAL_RIGHT,
+	OGA_PHYSICAL_F1,
+	OGA_PHYSICAL_F2,
+	OGA_PHYSICAL_F3,
+	OGA_PHYSICAL_F4,
+	OGA_PHYSICAL_F5,
+	OGA_PHYSICAL_F6
+};
