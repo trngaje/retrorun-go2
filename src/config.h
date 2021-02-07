@@ -21,6 +21,19 @@ typedef struct
 	int screen_shot_key;
 	int screen_rotate_key;
 	int fullscreen_key;
+	int reset_key;
+	int pause_key;
+	
+	int show_status_icons;
+	int show_status_texts;
+	int icon_battery_x;
+	int icon_battery_y;
+	int icon_volume_x;
+	int icon_volume_y;
+	int icon_brightness_x;
+	int icon_brightness_y;
+	int status_x;
+	int status_y;
 	
 	char csnapnamewithrompath[256];
 	char cdir_snapshot[256];

@@ -39,9 +39,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #define BATTERY_BUFFER_SIZE (128)
 
 static const char* EVDEV_NAME = "/dev/input/by-path/platform-odroidgo2-joypad-event-joystick";
+static const char* OGS_EVDEV_NAME = "/dev/input/by-path/platform-odroidgo3-joypad-event-joystick";
+static const char* RG351P_EVDEV_NAME = "/dev/input/by-path/platform-ff300000.usb-usb-0:1.2:1.0-event-joystick";
 static const char* BATTERY_STATUS_NAME = "/sys/class/power_supply/battery/status";
 static const char* BATTERY_CAPACITY_NAME = "/sys/class/power_supply/battery/capacity";
 
+//#define TRNGAJE_OGA_CLONED_RG351P
 
 typedef struct go2_input
 {
@@ -143,11 +146,49 @@ static void* input_task(void* arg)
 
     if (!input->dev) return NULL;
 
-    const int abs_x_max = 512; //libevdev_get_abs_maximum(input->dev, ABS_X);
-    const int abs_y_max = 512; //libevdev_get_abs_maximum(input->dev, ABS_Y);
+  
+#ifdef TRNGAJE_OGA_CLONED_RG351P
+	//12bit 
+	//0x800
+	
+    const int abs_x_max = libevdev_get_abs_maximum(input->dev, ABS_X);
+    const int abs_y_max = libevdev_get_abs_maximum(input->dev, ABS_Y);
 
-    //printf("abs: x_max=%d, y_max=%d\n", abs_x_max, abs_y_max);
-    
+    printf("abs: x_max=%d, y_max=%d\n", abs_x_max, abs_y_max);
+
+    // Get current state
+/*
+	// for RG351P
+    Event code 304 (BTN_SOUTH) a
+    Event code 305 (BTN_EAST) b
+    Event code 306 (BTN_C) x
+    Event code 307 (BTN_NORTH) y
+    Event code 308 (BTN_WEST) l
+    Event code 309 (BTN_Z) r 
+    Event code 310 (BTN_TL) start
+    Event code 311 (BTN_TR) select
+    Event code 312 (BTN_TL2) l3
+    Event code 313 (BTN_TR2) r3
+    Event code 314 (BTN_SELECT) l2
+    Event code 315 (BTN_START) r2
+*/
+    input->pending_state.buttons.a = libevdev_get_event_value(input->dev, EV_KEY, BTN_SOUTH) ? ButtonState_Pressed : ButtonState_Released;
+    input->pending_state.buttons.b = libevdev_get_event_value(input->dev, EV_KEY, BTN_EAST) ? ButtonState_Pressed : ButtonState_Released;
+    input->pending_state.buttons.x = libevdev_get_event_value(input->dev, EV_KEY, BTN_C) ? ButtonState_Pressed : ButtonState_Released;
+    input->pending_state.buttons.y = libevdev_get_event_value(input->dev, EV_KEY, BTN_NORTH) ? ButtonState_Pressed : ButtonState_Released;
+
+    input->pending_state.buttons.top_left = libevdev_get_event_value(input->dev, EV_KEY, BTN_WEST) ? ButtonState_Pressed : ButtonState_Released;
+    input->pending_state.buttons.top_right = libevdev_get_event_value(input->dev, EV_KEY, BTN_Z) ? ButtonState_Pressed : ButtonState_Released;
+
+    input->current_state.buttons.f1 = libevdev_get_event_value(input->dev, EV_KEY, BTN_TL2) ? ButtonState_Pressed : ButtonState_Released; // l3
+    input->current_state.buttons.f2 = libevdev_get_event_value(input->dev, EV_KEY, BTN_SELECT) ? ButtonState_Pressed : ButtonState_Released; // l2
+    input->current_state.buttons.f3 = libevdev_get_event_value(input->dev, EV_KEY, BTN_TR) ? ButtonState_Pressed : ButtonState_Released; // select
+    input->current_state.buttons.f4 = libevdev_get_event_value(input->dev, EV_KEY, BTN_TL) ? ButtonState_Pressed : ButtonState_Released; // start
+    input->current_state.buttons.f5 = libevdev_get_event_value(input->dev, EV_KEY, BTN_START) ? ButtonState_Pressed : ButtonState_Released; // r2
+    input->current_state.buttons.f5 = libevdev_get_event_value(input->dev, EV_KEY, BTN_TR2) ? ButtonState_Pressed : ButtonState_Released; // r3
+#else
+    const int abs_x_max = 512; //libevdev_get_abs_maximum(input->dev, ABS_X);
+    const int abs_y_max = 512; //libevdev_get_abs_maximum(input->dev, ABS_Y);	
 
     // Get current state
     input->pending_state.dpad.up = libevdev_get_event_value(input->dev, EV_KEY, BTN_DPAD_UP) ? ButtonState_Pressed : ButtonState_Released;
@@ -170,13 +211,39 @@ static void* input_task(void* arg)
     input->current_state.buttons.f5 = libevdev_get_event_value(input->dev, EV_KEY, BTN_TRIGGER_HAPPY5) ? ButtonState_Pressed : ButtonState_Released;
     input->current_state.buttons.f5 = libevdev_get_event_value(input->dev, EV_KEY, BTN_TRIGGER_HAPPY6) ? ButtonState_Pressed : ButtonState_Released;
 
-
+#endif
     // Events
 	while (!input->terminating)
 	{
 		/* EAGAIN is returned when the queue is empty */
 		struct input_event ev;
 		int rc = libevdev_next_event(input->dev, LIBEVDEV_READ_FLAG_BLOCKING, &ev);
+		
+		if (rc != LIBEVDEV_READ_STATUS_SUCCESS)
+		{
+			printf("[trngaje] evdev not ok\n");
+#ifdef TRNGAJE_OGA_CLONED_RG351P
+			libevdev_free(input->dev);
+			close(input->fd);			
+			
+			do{
+				input->fd = open(RG351P_EVDEV_NAME, O_RDONLY);
+				if (input->fd < 0)
+				{
+					//printf("Joystick: No gamepad found.\n");
+				}
+				else
+				{    
+					if (libevdev_new_from_fd(input->fd, &input->dev) < 0)
+					{
+						printf("Joystick: Failed to init libevdev (%s)\n", strerror(-rc));
+					}
+					
+					rc = libevdev_next_event(input->dev, LIBEVDEV_READ_FLAG_BLOCKING, &ev);						
+				}	
+			} while (input->fd < 0);
+#endif	
+		}
 		if (rc == 0)
 		{
 #if 0
@@ -205,6 +272,61 @@ static void* input_task(void* arg)
                         input->pending_state.dpad.right = state;
                         break;
 
+#ifdef TRNGAJE_OGA_CLONED_RG351P
+/*
+	// for RG351P
+    Event code 304 (BTN_SOUTH) a
+    Event code 305 (BTN_EAST) b
+    Event code 306 (BTN_C) x
+    Event code 307 (BTN_NORTH) y
+    Event code 308 (BTN_WEST) l
+    Event code 309 (BTN_Z) r 
+    Event code 310 (BTN_TL) start
+    Event code 311 (BTN_TR) select
+    Event code 312 (BTN_TL2) l3
+    Event code 313 (BTN_TR2) r3
+    Event code 314 (BTN_SELECT) l2
+    Event code 315 (BTN_START) r2
+*/
+                    case BTN_SOUTH:
+                        input->pending_state.buttons.a = state;
+                        break;
+                    case BTN_EAST:
+                        input->pending_state.buttons.b = state;
+                        break;
+                    case BTN_C:
+                        input->pending_state.buttons.x = state;
+                        break;
+                    case BTN_NORTH:
+                        input->pending_state.buttons.y = state;
+                        break;
+
+                    case BTN_WEST:
+                        input->pending_state.buttons.top_left = state;
+                        break;                    
+                    case BTN_Z:          
+                        input->pending_state.buttons.top_right = state;
+                        break;
+
+                    case BTN_TL2:
+                        input->pending_state.buttons.f1 = state; // l3
+                        break;
+                    case BTN_SELECT:
+                        input->pending_state.buttons.f2 = state; // l2
+                        break;
+                    case BTN_TR:
+                        input->pending_state.buttons.f3 = state; // select
+                        break;
+                    case BTN_TL:
+                        input->pending_state.buttons.f4 = state; // start
+                        break;
+                    case BTN_START:
+                        input->pending_state.buttons.f5 = state; // r2
+                        break;
+                    case BTN_TR2:
+                        input->pending_state.buttons.f6 = state; // r3
+                        break;
+#else
                     case BTN_EAST:
                         input->pending_state.buttons.a = state;
                         break;
@@ -243,18 +365,72 @@ static void* input_task(void* arg)
                     case BTN_TRIGGER_HAPPY6:
                         input->pending_state.buttons.f6 = state;
                         break;
+#endif
                 }
             }
             else if (ev.type == EV_ABS)
             {
                 switch (ev.code)
                 {
+#ifdef TRNGAJE_OGA_CLONED_RG351P
+                    case ABS_Z: // analog x
+						//12bit 
+						//0x800
+						if (ev.value >= 0x800)
+							input->pending_state.thumb.x = (float)(-1.0) * ((ev.value - 0x800) & 0x7ff) / 512;
+						else 
+							input->pending_state.thumb.x = (float)(0x800 - ev.value) / 512;
+						
+						printf("abs: x_max=%d, value=0x%x, thumb.x=%f\n", abs_x_max, ev.value, input->pending_state.thumb.x);
+                        break;
+						
+                    case ABS_RX: // analog y
+						if (ev.value >= 0x800)
+							input->pending_state.thumb.y = (float)(-1.0) * ((ev.value - 0x800) & 0x7ff)/ 512;
+						else 
+							input->pending_state.thumb.y = (float)(0x800 - ev.value) / 512;	
+						
+						printf("abs: y_max=%d, value=0x%x, thumb.y=%f\n", abs_y_max, ev.value, input->pending_state.thumb.y);
+						
+                        break;
+					
+					case ABS_RY : // right: analog x
+						if (ev.value >= 0x800)
+							input->pending_state.thumb. = (float)(-1.0) * ((ev.value - 0x800) & 0x7ff) / 512;
+						else 
+							input->pending_state.thumb.rightx = (float)(0x800 - ev.value) / 512;
+						
+						printf("abs: x_max=%d, value=0x%x, thumb.x=%f\n", abs_x_max, ev.value, input->pending_state.thumb.x);
+						break;
+					
+					case ABS_RZ : // right: analog y
+						if (ev.value >= 0x800)
+							input->pending_state.thumb.righty = (float)(-1.0) * ((ev.value - 0x800) & 0x7ff)/ 512;
+						else 
+							input->pending_state.thumb.righty = (float)(0x800 - ev.value) / 512;	
+						
+						printf("abs: y_max=%d, value=0x%x, thumb.y=%f\n", abs_y_max, ev.value, input->pending_state.thumb.y);
+						break;
+					
+						
+#else
                     case ABS_X:
                         input->pending_state.thumb.x = ev.value / (float)abs_x_max;
                         break;
-                    case ABS_Y:
+                    case ABS_Y:				
                         input->pending_state.thumb.y = ev.value / (float)abs_y_max;
                         break;
+						
+                    case ABS_RX:
+                        input->pending_state.thumb.rightx = (float)ev.value / (float)abs_x_max;
+						printf("abs: %f, %f\n", input->pending_state.thumb.rightx, input->pending_state.thumb.righty);
+                        break;
+                    case ABS_RY:				
+                        input->pending_state.thumb.righty = (float)ev.value / (float)abs_y_max;
+						printf("abs: %f, %f\n", input->pending_state.thumb.rightx, input->pending_state.thumb.righty);
+                        break;
+#endif	
+
 					case ABS_HAT0X:	 // add ABS_HAT0X/ABS_HAT0Y by trngaje
 						if (ev.value < 0)
 						{
@@ -323,6 +499,21 @@ go2_input_t* go2_input_create()
 
 
     result->fd = open(EVDEV_NAME, O_RDONLY);
+
+    if (result->fd < 0)
+    {
+		// retry for RG351P
+        printf("Joystick: No oga gamepad found.\n");
+		result->fd = open(OGS_EVDEV_NAME, O_RDONLY);
+    }
+	
+    if (result->fd < 0)
+    {
+		// retry for RG351P
+        printf("Joystick: No oga gamepad found.\n");
+		result->fd = open(RG351P_EVDEV_NAME, O_RDONLY);
+    }
+	
     if (result->fd < 0)
     {
         printf("Joystick: No gamepad found.\n");

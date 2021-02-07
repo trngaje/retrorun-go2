@@ -26,6 +26,9 @@ typedef struct
 {
     float x;
     float y;
+	// for RG351P
+	float rightx;
+	float righty;
 } go2_thumb_t;
 
 typedef enum 

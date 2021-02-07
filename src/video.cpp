@@ -71,6 +71,8 @@ int GLContextMinor = 0;
 GLuint fbo;
 int hasStencil = false;
 extern bool input_exit_requested;
+extern bool input_pause_requested;
+
 bool screenshot_requested = false;
 bool snapandexit_requested = false;
 int prevBacklight;
@@ -81,6 +83,8 @@ extern unsigned char ucDPAD_rotate; // 0 (default), 1, 2, 3 = degree 0,90,180,27
 unsigned char ucScreen_rotate=0; //trngaje
 unsigned char ucRom_rotate=0; 
 
+int go2_w,go2_h;
+
 void video_configure(const struct retro_game_geometry* geom)
 {
 	printf("video_configure: base_width=%d, base_height=%d, max_width=%d, max_height=%d, aspect_ratio=%f\n",
@@ -90,8 +94,13 @@ void video_configure(const struct retro_game_geometry* geom)
 
     
     display = go2_display_create();
-    presenter = go2_presenter_create(display, DRM_FORMAT_RGB565, 0xff080808);  // ABGR
+    go2_w = go2_display_height_get(display);
+    go2_h = go2_display_width_get(display);
 
+    // old
+    //presenter = go2_presenter_create(display, DRM_FORMAT_XRGB8888, 0xff080808);  // ABGR
+	// new
+	presenter = go2_presenter_create(display, DRM_FORMAT_RGB565, 0xff080808);  // ABGR
 
     if (opt_backlight > -1)
     {
@@ -214,12 +223,12 @@ void video_configure(const struct retro_game_geometry* geom)
             throw std::exception();
         }
         
-
+	
         
         //printf("video_configure: rect=%d, %d, %d, %d\n", y, x, h, w);
     }
 	
-	status_surface = go2_surface_create(display, 480, 320, DRM_FORMAT_RGB565);	
+	status_surface = go2_surface_create(display, go2_w/*480*/, go2_h/*320*/, DRM_FORMAT_RGB565);	
 	if (!status_surface)
 	{
 		printf("[trngaje] go2_surface_create failed.:status_surface\n");
@@ -616,11 +625,22 @@ void showstatus(int x, int y, int mode)
 {
 	// display texts for current status
 	uint8_t* dst = (uint8_t*)go2_surface_map(status_surface);
+	int dst_stride = go2_surface_stride_get(status_surface);
 	
-	if (mode == 0)
-		basic_text_out16(dst, 480/*width*/, x, y, "F:%d, B:%d, L:%d, V:%d", fps, batteryState.level, opt_backlight, opt_volume);
-	else if (mode == 1)
-		basic_text_out16(dst, 480/*width*/, x, y, "F:%d",  fps);	
+	if (input_pause_requested)
+	{
+		if (mode == 0)
+			basic_text_out16(dst, dst_stride/2/*go2_w*//*480*//*width*/, x, y, "F:%d, B:%d, L:%d, V:%d <paused>", fps, batteryState.level, opt_backlight, opt_volume);
+		else if (mode == 1)
+			basic_text_out16(dst, dst_stride/2/*go2_w*//*480*//*width*/, x, y, "F:%d <paused>",  fps);			
+	}
+	else
+	{
+		if (mode == 0)
+			basic_text_out16(dst, dst_stride/2/*go2_w*//*480*//*width*/, x, y, "F:%d, B:%d, L:%d, V:%d", fps, batteryState.level, opt_backlight, opt_volume);
+		else if (mode == 1)
+			basic_text_out16(dst, dst_stride/2/*go2_w*//*480*//*width*/, x, y, "F:%d",  fps);	
+	}
 }
 
 
@@ -641,6 +661,7 @@ void core_video_refresh(const void * data, unsigned width, unsigned height, size
     int y;
     int w;
     int h;
+	
     if (aspect_ratio >= 1.0f)
     {
         h = go2_display_width_get(display);
@@ -761,7 +782,7 @@ void core_video_refresh(const void * data, unsigned width, unsigned height, size
 		{
 			uint8_t* dst = (uint8_t*)go2_surface_map(status_surface);
 
-			memset(dst, 0x0000, sizeof(short) * 480 * 320);
+			memset(dst, 0x0000, sizeof(short) * go2_w * go2_h /*480 * 320*/);
 		}
 		
 		//status_surface
@@ -773,7 +794,7 @@ void core_video_refresh(const void * data, unsigned width, unsigned height, size
 		{
 			uint8_t* dst = (uint8_t*)go2_surface_map(status_surface);
 			
-			basic_text_out16(dst, 480/*width*/, 0, 32, "F:%d, B:%d, L:%d, V:%d", 
+			basic_text_out16(dst, go2_w/*480*/ /*width*/, 0, 32, "F:%d, B:%d, L:%d, V:%d", 
 				fps, batteryState.level, opt_backlight, opt_volume);	
 		}			
 #endif
@@ -830,7 +851,7 @@ void core_video_refresh(const void * data, unsigned width, unsigned height, size
                     // dst2[x] = pixel;
 
                     uint32_t pixel = src2[x];
-                    pixel = ((pixel << 1) & (~0x3f003f)) | (pixel & 0x1f001f);
+                    pixel = (pixel << 1) & (~0x1f001f) | pixel & 0x1f001f;
                     dst2[x] = pixel;
                 }
             }
@@ -913,7 +934,6 @@ void core_video_refresh(const void * data, unsigned width, unsigned height, size
 			
 
 
-
             go2_surface_destroy(screenshot);
 
             screenshot_requested = false;
@@ -929,7 +949,7 @@ void core_video_refresh(const void * data, unsigned width, unsigned height, size
 		{
 			uint8_t* dst = (uint8_t*)go2_surface_map(status_surface);
 
-			memset(dst, 0x0000, sizeof(short) * 480 * 320);
+			memset(dst, 0x0000, sizeof(short) * go2_w * go2_h /*480 * 320*/);
 		}
 		
 		//status_surface
@@ -948,7 +968,7 @@ void core_video_refresh(const void * data, unsigned width, unsigned height, size
 	if (cfgf.show_status_icons > 0)
 	{
 #if 0
-		showbattery(480 - 32, 0);
+		showbattery(go2_w/*480*/ - 32, 0);
 		showvolume(0, 0);
 		showbrightness(64, 0);
 #endif
@@ -967,11 +987,15 @@ void core_video_refresh(const void * data, unsigned width, unsigned height, size
 #else
         go2_presenter_post(presenter,
                            status_surface,
-                           0, 0, 480, 320,
-                           0, 0, 320, 480,
+                           0, 0, go2_w, go2_h, /*480, 320,*/
+                           0, 0, go2_h, go2_w, /*320, 480,*/
                            GO2_ROTATION_DEGREES_270);
 	
 #endif
 
     //}
 }
+
+
+
+

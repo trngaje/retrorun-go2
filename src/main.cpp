@@ -85,7 +85,6 @@ struct option longopts[] = {
 	{ "config", required_argument, NULL, 'c' }, // added by trngaje
     { "restart", no_argument, NULL, 'r' },
     { "triggers", no_argument, NULL, 't' },
-    { "analog", no_argument, NULL, 'n' },
     { 0, 0, 0, 0 }};
 
 
@@ -430,18 +429,35 @@ static bool core_environment(unsigned cmd, void* data)
 				ucDPAD_rotate = 0;
 			}
 			else{
-				if (ucRom_rotate == 2 || ucRom_rotate == 3)
+
+#if 1 //def TRNGAJE_OGA_CLONED_RG351P
+				if (ucRom_rotate == 2 || ucRom_rotate == 1) // for rg351p
+#else
+				if (ucRom_rotate == 2 || ucRom_rotate == 3) // for oga	
+#endif
 				{
+#if 0
+					// for RG351P
+					ucDPAD_rotate = (ucRom_rotate) % 4;
+					ucScreen_rotate = 0;				
+#else					
 					ucDPAD_rotate = (ucRom_rotate + 2) % 4;
 					ucScreen_rotate = (4 + 0 - 2) % 4;
+#endif
 				}
 				else{
+#if 0
+					ucScreen_rotate = 2;
+					ucDPAD_rotate = (ucRom_rotate + 2) % 4;	
+#else					
 					ucScreen_rotate = 0;
-					ucDPAD_rotate = ucRom_rotate;				
+					ucDPAD_rotate = ucRom_rotate;	
+#endif					
 				}
 				
 			}
 			
+			printf("[trngaje] ucDPAD_rotate=%d\n", ucDPAD_rotate);
 			
             return true;
 		
@@ -511,7 +527,7 @@ static void core_load(const char* sofile)
     g_retro.retro_set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
 
     struct retro_system_info system = {
-		0, 0, 0, false, false
+		 0, 0, 0, false, false
 	};
     g_retro.retro_get_system_info(&system);
     printf("core_load: library_name='%s'\n", system.library_name);
@@ -536,6 +552,7 @@ static void core_load_game(const char * filename)
 	};
 	struct retro_system_info system = {
 		0, 0, 0, false, false
+		//0, 0, 0, true, true
 	};
 	struct retro_game_info info = {
 		filename,
@@ -966,6 +983,22 @@ bool read_config_file(const char *cConfigFile)
 		// display binding
 		printf("fullscreen_key :%d\n", index);			
 	}
+
+	if (config_lookup_string(cf, "input_reset_btn", &base))
+	{
+		index = getindexofkey(base);
+		cfgf.reset_key = index;
+		// display binding
+		printf("reset_key :%d\n", index);	
+	}
+	
+	if (config_lookup_string(cf, "input_pause_btn", &base))
+	{
+		index = getindexofkey(base);
+		cfgf.pause_key = index;
+		// display binding
+		printf("pause_key :%d\n", index);			
+	}
 	
 	for(i=0; i<sizeof(bindkeys) / sizeof(int); i++)
 	{
@@ -1016,7 +1049,7 @@ int main(int argc, char *argv[])
     int c;
     int option_index = 0;
 
-	while ((c = getopt_long(argc, argv, "s:d:a:b:v:c:rtn", longopts, &option_index)) != -1)
+	while ((c = getopt_long(argc, argv, "s:d:a:b:v:c:rt", longopts, &option_index)) != -1)
 	{
 		switch (c)
 		{
@@ -1050,10 +1083,6 @@ int main(int argc, char *argv[])
 
             case 't':
                 opt_triggers = true;
-                break;
-
-            case 'n':
-                Retrorun_UseAnalogStick = true;
                 break;
 
 			default:
@@ -1098,21 +1127,6 @@ int main(int argc, char *argv[])
     // Overrides
     printf("Checking overrides.\n");
 
-#if 0
-	// new 
-    go2_input_state_t* gamepadState = go2_input_state_create();
-    input_gamepad_read(gamepadState);
-
-    if (go2_input_state_button_get(gamepadState, Go2InputButton_F1) == ButtonState_Pressed)
-    {
-        printf("Forcing restart due to button press (F1).\n");
-        opt_restart = true;
-    }
-
-    go2_input_state_destroy(gamepadState);
-    gamepadState = NULL;
-#else
-	// old
     go2_gamepad_state_t gamepadState;
     input_gamepad_read(&gamepadState);
 
@@ -1121,7 +1135,7 @@ int main(int argc, char *argv[])
         printf("Forcing restart due to button press (F1).\n");
         opt_restart = true;
     }
-#endif
+
 
     // State
     const char* fileName = FileNameFromPath(arg_rom);  // same to basename
@@ -1194,6 +1208,7 @@ int main(int argc, char *argv[])
 		sramPath = PathCombine(opt_savedir, sramName);
 		printf("sramPath='%s'\n", sramPath);
 
+
 		if (opt_restart)
 		{
 			printf("Restarting.\n");
@@ -1207,7 +1222,6 @@ int main(int argc, char *argv[])
 		if (cfgf.autosave)
 			LoadSram(sramPath);
 	}
-
 
     printf("Entering render loop.\n");
 
@@ -1244,9 +1258,16 @@ int main(int argc, char *argv[])
 			LoadState(savePath);
 		}
 	
+        if (!input_pause_requested)
+        {		
+			g_retro.retro_run();
+        }
+		else
+		{
+            // must poll to unpause
+            core_input_poll();			
+		}
 		
-        g_retro.retro_run();
-        
         gettimeofday(&endTime, NULL);
         ++totalFrames;
 
@@ -1275,5 +1296,6 @@ int main(int argc, char *argv[])
 		free(savePath);
 		free(saveName);
 	}
+	
     return 0;
 }
