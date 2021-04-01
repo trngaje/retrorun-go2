@@ -55,6 +55,15 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #define RETRO_DEVICE_ATARI_JOYSTICK RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_JOYPAD, 1)
 
+#define RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER 56
+                                           /* unsigned * --
+                                            *
+                                            * Allows an implementation to ask frontend preferred hardware
+                                            * context to use. Core should use this information to deal
+                                            * with what specific context to request with SET_HW_RENDER.
+                                            *
+                                            * 'data' points to an unsigned variable
+                                            */
 
 extern go2_battery_state_t batteryState;
 extern unsigned char ucDPAD_rotate; //trngaje
@@ -225,11 +234,26 @@ static bool core_environment(unsigned cmd, void* data)
             *(const char**)data = opt_savedir;
             return true;
 
+        case RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER:
+        {
+            unsigned int* preferred = (unsigned int*)data;
+            *preferred = RETRO_HW_CONTEXT_OPENGLES3;
+            return true;
+        }
+
         case RETRO_ENVIRONMENT_SET_HW_RENDER:
         {
             retro_hw_render_callback* hw = (retro_hw_render_callback*)data;
 
-            printf("RETRO_ENVIRONMENT_SET_HW_RENDER\n");
+                        printf("RETRO_ENVIRONMENT_SET_HW_RENDER: context_type=%d\n", hw->context_type);
+
+            if (hw->context_type != RETRO_HW_CONTEXT_OPENGLES_VERSION &&
+                hw->context_type != RETRO_HW_CONTEXT_OPENGLES3 &&
+                hw->context_type != RETRO_HW_CONTEXT_OPENGLES2)
+            {
+                return false;
+            }
+
             isOpenGL = true;
             GLContextMajor = hw->version_major;
             GLContextMinor = hw->version_minor;
@@ -272,7 +296,7 @@ static bool core_environment(unsigned cmd, void* data)
         case RETRO_ENVIRONMENT_GET_VARIABLE:
         {
             retro_variable* var = (retro_variable*)data;
-            printf("ENV_VAR: %s\n", var->key);
+            printf("GET_VAR: %s\n", var->key);
 
             if (strcmp(var->key, "fbneo-neogeo-mode") == 0)
             {
@@ -397,7 +421,115 @@ static bool core_environment(unsigned cmd, void* data)
                 return true;				
 			}
 #endif			
-	        else{
+            else if (strcmp(var->key, "duckstation_GPU.Renderer") == 0)
+            {
+                var->value = "Software";
+                return true;
+            }
+            // else if (strcmp(var->key, "duckstation_CPU.ExecutionMode") == 0)
+            // {
+            //     var->value = "Recompiler";
+            //     return true;
+            // }
+            else if (strcmp(var->key, "reicast_threaded_rendering") == 0)
+            {
+                var->value = "enabled";
+                return true;
+            }
+            else if (strcmp(var->key, "reicast_internal_resolution") == 0)
+            {
+                var->value = "640x480";
+                return true;
+            }else if (strcmp(var->key, "reicast_anisotropic_filtering") == 0)
+            {
+                var->value = "off";
+                return true;
+            }else if (strcmp(var->key, "reicast_enable_dsp") == 0)
+            {
+                var->value = "disabled";
+                return true;
+            }
+            else if (strcmp(var->key, "reicast_synchronous_rendering") == 0)
+            {
+                var->value = "disabled";
+                return true;
+            }
+            else if (strcmp(var->key, "reicast_enable_rtt") == 0)
+            {
+                var->value = "disabled";
+                return true;
+            }
+            else if (strcmp(var->key, "reicast_enable_rttb") == 0)
+            {
+                var->value = "disabled";
+                return true;
+            }
+            else if (strcmp(var->key, "reicast_delay_frame_swapping") == 0)
+            {
+                var->value = "disabled";
+                return true;
+            }else if (strcmp(var->key, "reicast_alpha_sorting") == 0)
+            {
+                var->value = "per-strip (fast, least accurate)";
+                return true;
+            }
+            else if (strcmp(var->key, "reicast_div_matching") == 0)
+            {
+                var->value = "auto";
+                return true;
+            }
+            else if (strcmp(var->key, "reicast_texupscale") == 0)
+            {
+                var->value = "off";
+                return true;
+            }else if (strcmp(var->key, "reicast_enable_purupuru") == 0)
+            {
+                var->value = "enabled";
+                printf("Vibration support should be on\n");
+                return true;
+            }
+            else if (strcmp(var->key, "yabasanshiro_addon_cart") == 0)
+            {
+                var->value = "4M_extended_ram";
+                printf("4M extended ram enabled.\n");
+                return true;
+            }
+            else if (strcmp(var->key, "yabasanshiro_frameskip") == 0)
+            {
+                var->value = "disabled";
+                printf("Frameskip should be on\n");
+                return true;
+            }
+            else if (strcmp(var->key, "yabasanshiro_rbg_use_compute_shader") == 0)
+            {
+                var->value = "disabled";
+                printf("Compute shader should be off\n");
+                return true;
+            }
+            else if (strcmp(var->key, "yabasanshiro_sh2coretype") == 0)
+            {
+                var->value = "dynarec";
+                printf("Dynarec should be on\n");
+                return true;
+            }
+            else if (strcmp(var->key, "yabasanshiro_rbg_resolution_mode") == 0)
+            {
+                var->value = "original";
+                printf("Original Rbg resolution should be on\n");
+                return true;
+            }
+            else if (strcmp(var->key, "yabasanshiro_resolution_mode") == 0)
+            {
+                var->value = "original";
+                printf("Original resolution should be on\n");
+                return true;
+            }
+            else if (strcmp(var->key, "yabasanshiro_polygon_mode") == 0)
+            {
+                var->value = "perspective_correction";
+                printf("Perspective correction resolution should be on for polygon mode\n");
+                return true;
+            }     	        else{
                 varmap_t::iterator iter = variables.find(var->key);
                 if (iter != variables.end())
                 {
@@ -412,6 +544,30 @@ static bool core_environment(unsigned cmd, void* data)
             return false;
         }
 
+        case RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION:
+        {
+            unsigned int* options_version = (unsigned int*)data;
+            *options_version = 1;
+            return true;
+        }
+
+        case RETRO_ENVIRONMENT_SET_CORE_OPTIONS:
+        {
+            const struct retro_core_option_definition* options = ((const struct retro_core_option_definition *)data);
+            int i = 0;
+            while (options[i].key != 0)
+            {
+                std::string key = options[i].key;
+                std::string value = options[i].default_value;
+
+                variables[key] = value;
+
+                printf("OPTION: key=%s, value=%s\n", key.c_str(), value.c_str());
+                ++i;
+            }
+
+            return true;
+        }
 		case RETRO_ENVIRONMENT_SET_ROTATION:
 			//Sets screen rotation of graphics.
 			//Valid values are 0, 1, 2, 3, which rotates screen by 0, 90, 180,
@@ -1101,7 +1257,7 @@ int main(int argc, char *argv[])
 
     if (remaining_args < 2)
     {
-		printf("Usage: %s [-s savedir] [-d systemdir] [-a aspect] core rom", argv[0]);
+		printf("Usage: %s [-s savedir] [-d systemdir] [-a aspect] core rom\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
