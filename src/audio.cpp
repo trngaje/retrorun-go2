@@ -30,7 +30,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 extern int opt_volume;
 
 
-static go2_audio_t* audio;
+static go2_audio_t* audio = NULL;
 static u_int16_t audioBuffer[FRAMES_MAX * CHANNELS];
 static int audioFrameCount;
 static int audioFrameLimit;
@@ -59,7 +59,8 @@ void audio_init(int freq)
 
 void audio_deinit()
 {
-
+	if (audio != NULL)
+		go2_audio_destroy(audio);
 }
 
 static void SetVolume()

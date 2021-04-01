@@ -55,13 +55,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 extern float opt_aspect;
 extern int opt_backlight;
 
-go2_display_t* display;
-go2_surface_t* surface;
-go2_surface_t* status_surface;
-go2_surface_t* display_surface;
-go2_frame_buffer_t* frame_buffer;
-go2_presenter_t* presenter;
-go2_context_t* context3D;
+go2_display_t* display = NULL;
+go2_surface_t* surface = NULL;
+go2_surface_t* status_surface = NULL;
+go2_presenter_t* presenter = NULL;
+go2_context_t* context3D = NULL;
 float aspect_ratio;
 uint32_t color_format;
 
@@ -239,6 +237,21 @@ void video_configure(const struct retro_game_geometry* geom)
 
 void video_deinit()
 {
+	if (status_surface != NULL)
+		go2_surface_destroy(status_surface);
+
+	if (surface != NULL)
+		go2_surface_destroy(surface);
+	
+	if (context3D != NULL)
+		go2_context_destroy(context3D);
+
+	if (presenter != NULL)
+		go2_presenter_destroy(presenter);
+
+	if (display != NULL)
+		go2_display_destroy(display);
+	
 
 }
 

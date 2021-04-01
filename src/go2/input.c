@@ -154,7 +154,7 @@ static void* input_task(void* arg)
     const int abs_x_max = libevdev_get_abs_maximum(input->dev, ABS_X);
     const int abs_y_max = libevdev_get_abs_maximum(input->dev, ABS_Y);
 
-    printf("abs: x_max=%d, y_max=%d\n", abs_x_max, abs_y_max);
+    //printf("abs: x_max=%d, y_max=%d\n", abs_x_max, abs_y_max);
 
     // Get current state
 /*
@@ -381,7 +381,7 @@ static void* input_task(void* arg)
 						else 
 							input->pending_state.thumb.x = (float)(0x800 - ev.value) / 512;
 						
-						printf("abs: x_max=%d, value=0x%x, thumb.x=%f\n", abs_x_max, ev.value, input->pending_state.thumb.x);
+						//printf("abs: x_max=%d, value=0x%x, thumb.x=%f\n", abs_x_max, ev.value, input->pending_state.thumb.x);
                         break;
 						
                     case ABS_RX: // analog y
@@ -390,7 +390,7 @@ static void* input_task(void* arg)
 						else 
 							input->pending_state.thumb.y = (float)(0x800 - ev.value) / 512;	
 						
-						printf("abs: y_max=%d, value=0x%x, thumb.y=%f\n", abs_y_max, ev.value, input->pending_state.thumb.y);
+						//printf("abs: y_max=%d, value=0x%x, thumb.y=%f\n", abs_y_max, ev.value, input->pending_state.thumb.y);
 						
                         break;
 					
@@ -400,7 +400,7 @@ static void* input_task(void* arg)
 						else 
 							input->pending_state.thumb.rightx = (float)(0x800 - ev.value) / 512;
 						
-						printf("abs: x_max=%d, value=0x%x, thumb.x=%f\n", abs_x_max, ev.value, input->pending_state.thumb.x);
+						//printf("abs: x_max=%d, value=0x%x, thumb.x=%f\n", abs_x_max, ev.value, input->pending_state.thumb.x);
 						break;
 					
 					case ABS_RZ : // right: analog y
@@ -409,7 +409,7 @@ static void* input_task(void* arg)
 						else 
 							input->pending_state.thumb.righty = (float)(0x800 - ev.value) / 512;	
 						
-						printf("abs: y_max=%d, value=0x%x, thumb.y=%f\n", abs_y_max, ev.value, input->pending_state.thumb.y);
+						//printf("abs: y_max=%d, value=0x%x, thumb.y=%f\n", abs_y_max, ev.value, input->pending_state.thumb.y);
 						break;
 					
 						
@@ -423,11 +423,11 @@ static void* input_task(void* arg)
 						
                     case ABS_RX:
                         input->pending_state.thumb.rightx = (float)ev.value / (float)abs_x_max;
-						printf("abs: %f, %f\n", input->pending_state.thumb.rightx, input->pending_state.thumb.righty);
+						//printf("abs: %f, %f\n", input->pending_state.thumb.rightx, input->pending_state.thumb.righty);
                         break;
                     case ABS_RY:				
                         input->pending_state.thumb.righty = (float)ev.value / (float)abs_y_max;
-						printf("abs: %f, %f\n", input->pending_state.thumb.rightx, input->pending_state.thumb.righty);
+						//printf("abs: %f, %f\n", input->pending_state.thumb.rightx, input->pending_state.thumb.righty);
                         break;
 #endif	
 

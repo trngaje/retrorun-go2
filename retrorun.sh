@@ -12,13 +12,17 @@ CORE_PATH=/home/odroid/.config/retroarch/cores/mame2010_libretro.so
 elif [ "$1" = "mame2015" ]; then
 CORE_PATH=/home/odroid/.config/retroarch/cores/mame2015_libretro.so
 elif [ "$1" = "hbmame" ]; then
-CORE_PATH=/home/odroid/cores64/hbmame_libretro.so
+CORE_PATH=/home/odroid/.config/retroarch/cores/hbmame_libretro.so
 elif [ "$1" = "bluemsx" ]; then
 CORE_PATH=/home/odroid/.config/retroarch/cores/bluemsx_libretro.so
 elif [ "$1" = "snes9x2010" ]; then
 CORE_PATH=/home/odroid/.config/retroarch/cores/snes9x2010_libretro.so
 elif [ "$1" = "snes9x" ]; then
 CORE_PATH=/home/odroid/.config/retroarch/cores/snes9x_libretro.so
+
+#atomiswave
+elif [ "$1" = "atomiswave" ]; then
+CORE_PATH=/home/odroid/.config/retroarch/cores/flycast_libretro.so
 
 #nes
 elif [ "$1" = "fceumm" ]; then
@@ -49,6 +53,8 @@ CORE_PATH=/home/odroid/.config/retroarch/cores/parallel_n64_libretro.so
 
 #dreamcast
 elif [ "$1" = "flycast" ]; then
+CORE_PATH=/home/odroid/.config/retroarch/cores/flycast_libretro.so
+elif [ "$1" = "dreamcast" ]; then
 CORE_PATH=/home/odroid/.config/retroarch/cores/flycast_libretro.so
 
 #saturn
@@ -118,6 +124,10 @@ CORE_PATH=/home/odroid/.config/retroarch/cores/quasi88_libretro.so
 elif [ "$1" = "vecx" ]; then
 CORE_PATH=/home/odroid/.config/retroarch/cores/vecx_libretro.so
 
+#psx
+elif [ "$1" = "duckstation" ]; then
+CORE_PATH=/home/odroid/.config/retroarch/cores/duckstation_libretro.so
+
 #commodore 64
 elif [ "$1" = "vice_x64" ]; then
 CORE_PATH=/home/odroid/.config/retroarch/cores/vice_x64_libretro.so
@@ -125,8 +135,6 @@ elif [ "$1" = "x1" ]; then
 CORE_PATH=/home/odroid/.config/retroarch/cores/x1_libretro.so
 
 fi
-
-
 
 /home/odroid/develop/retrorun-go2/retrorun -c $CONFIG_FILE_PATH -s /home/odroid/retrorundata -d /roms/bios $CORE_PATH "$2" 
 

@@ -1183,8 +1183,21 @@ bool read_config_file(const char *cConfigFile)
 
 int fps = 0;
 
+#include <signal.h>
+
+extern void video_deinit();
+extern void audio_deinit();
+
+void my_handler(int sig)
+{	
+	printf("[trngaje] Caught signal %d\n", sig);
+	exit(1); 
+}
+
 int main(int argc, char *argv[])
 {
+	signal(SIGINT, my_handler);
+	signal(SIGQUIT, my_handler);
     //printf("argc=%d, argv=%p\n", argc, argv);
 
 
@@ -1347,24 +1360,24 @@ int main(int argc, char *argv[])
 	if (basestr)
 		free(basestr);
 	
-	char* savePath;
-	char* sramName;
-	char* sramPath;
+	char* savePath=NULL;
+	char* sramName=NULL;
+	char* sramPath=NULL;
+
+	strcat(saveName, ".sav");
+
+	savePath = PathCombine(opt_savedir, saveName);
+	printf("savePath='%s'\n", savePath);
+	
+	sramName = (char*)malloc(strlen(fileName) + 4 + 1);
+	strcpy(sramName, fileName);
+	strcat(sramName, ".srm");
+
+	sramPath = PathCombine(opt_savedir, sramName);
+	printf("sramPath='%s'\n", sramPath);
+
 	if (cfgf.autosave)
 	{
-		strcat(saveName, ".sav");
-
-		savePath = PathCombine(opt_savedir, saveName);
-		printf("savePath='%s'\n", savePath);
-		
-		sramName = (char*)malloc(strlen(fileName) + 4 + 1);
-		strcpy(sramName, fileName);
-		strcat(sramName, ".srm");
-
-		sramPath = PathCombine(opt_savedir, sramName);
-		printf("sramPath='%s'\n", sramPath);
-
-
 		if (opt_restart)
 		{
 			printf("Restarting.\n");
@@ -1375,13 +1388,10 @@ int main(int argc, char *argv[])
 			LoadState(savePath);
 		}
 
-		if (cfgf.autosave)
 			LoadSram(sramPath);
 	}
 
     printf("Entering render loop.\n");
-
-    const char* batteryStateDesc[] = { "UNK", "DSC", "CHG", "FUL" };
 
     struct timeval startTime;
     struct timeval endTime;
@@ -1445,13 +1455,31 @@ int main(int argc, char *argv[])
 	if (cfgf.autosave)
 	{
 		SaveSram(sramPath);
-		free(sramPath);
-		free(sramName);
-
 		SaveState(savePath);
-		free(savePath);
+	}		
+	
+	if (sramPath != NULL)
+		free(sramPath);
+	if (sramName != NULL)
+		free(sramName);
+	if (savePath != NULL)
+		free(savePath);		
+	if (saveName != NULL)
 		free(saveName);
+	
+	
+	video_deinit();
+	audio_deinit();
+	
+	if (isOpenGL)
+	{
+		throw std::exception();
 	}
+	
+	//core_unload();
+	
+	printf("[trngaje] input_exit_requested is TRUE : step3\n");
+	
 	
     return 0;
 }
